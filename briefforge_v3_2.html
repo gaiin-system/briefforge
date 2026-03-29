@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BriefForge — AI 작업 지시서 생성기</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #18181b;
+    --surface2: #222226;
+    --border: #2e2e34;
+    --border2: #3d3d45;
+    --text: #f0efe8;
+    --muted: #888884;
+    --accent: #c8f542;
+    --accent-dim: #a8d030;
+    --accent-bg: rgba(200,245,66,0.08);
+    --red: #ff5f5f;
+    --font-sans: 'DM Sans', sans-serif;
+    --font-serif: 'Instrument Serif', serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Layout */
+  .shell {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .logo-mark {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    color: var(--accent);
+    font-style: italic;
+  }
+  .logo-tag {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* API 키 영역 */
+  .api-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .api-box input {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-box input:focus { border-color: var(--accent); }
+  .api-status {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .dot.ok { background: var(--accent); }
+  .dot.err { background: var(--red); }
+
+  /* 에이전트 타입 선택 */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .agent-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .agent-btn:hover { border-color: var(--border2); color: var(--text); }
+  .agent-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .agent-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+
+  /* 타겟 AI 선택 */
+  .target-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .target-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .target-btn:hover { border-color: var(--border2); color: var(--text); }
+  .target-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--text);
+  }
+  .target-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+  }
+
+  /* Main */
+  .main {
+    padding: 2.5rem 2.5rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 800px;
+  }
+
+  .page-title {
+    font-family: var(--font-serif);
+    font-size: 32px;
+    font-style: italic;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* 입력 카드 */
+  .input-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .input-card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+  }
+  .input-card-title {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .input-card-body { padding: 16px 18px; }
+
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.7;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    min-height: 100px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* 섹션 체크박스 */
+  .sections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .section-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--muted);
+    user-select: none;
+  }
+  .section-check:hover { border-color: var(--border2); color: var(--text); }
+  .section-check.checked {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--text);
+  }
+  .check-box {
+    width: 16px; height: 16px;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    transition: all 0.15s;
+  }
+  .section-check.checked .check-box {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+
+  /* 예시 버튼 */
+  .example-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .example-pill {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .example-pill:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* 생성 버튼 */
+  .generate-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    padding: 14px 28px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
+  }
+  .generate-btn:hover { background: var(--accent-dim); transform: translateY(-1px); }
+  .generate-btn:active { transform: translateY(0); }
+  .generate-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* 결과 영역 */
+  .result-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: none;
+  }
+  .result-box.visible { display: block; }
+  .result-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .result-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .result-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .action-btn {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .action-btn:hover { color: var(--text); border-color: var(--border2); }
+  .result-content {
+    padding: 20px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 600px;
+    overflow-y: auto;
+  }
+  .result-content .section-head {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* 로딩 */
+  .loading-bar {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .loading-bar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -40%;
+    width: 40%;
+    height: 100%;
+    background: var(--accent);
+    animation: loading 1s ease infinite;
+  }
+  @keyframes loading {
+    to { left: 100%; }
+  }
+
+  /* 에러 */
+  .error-box {
+    background: rgba(255,95,95,0.08);
+    border: 1px solid rgba(255,95,95,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--red);
+    font-family: var(--font-mono);
+    display: none;
+  }
+  .error-box.visible { display: block; }
+
+  /* 히스토리 */
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .history-item {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 7px 10px;
+    cursor: pointer;
+    transition: color 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+  }
+  .history-item:hover { color: var(--text); }
+
+  /* 스크롤바 */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* 복사 완료 토스트 */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="logo">
+      <span class="logo-mark">BriefForge</span>
+      <span class="logo-tag">v3</span>
+    </div>
+
+    <!-- API 키 -->
+    <div>
+      <div class="section-label">Gemini API 키</div>
+      <div class="api-box">
+        <input type="password" id="apiKey" placeholder="AIza..." oninput="checkKey()">
+        <div class="api-status">
+          <div class="dot" id="apiDot"></div>
+          <span id="apiStatusText" style="color:var(--muted); font-size:11px;">키를 입력하세요</span>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.6;">
+        무료 키 발급: <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent); text-decoration:none;">aistudio.google.com/apikey</a><br>
+        모델: gemini-2.5-flash (무료)
+      </div>
+    </div>
+
+    <!-- 에이전트 타입 -->
+    <div>
+      <div class="section-label">에이전트 용도</div>
+      <div class="agent-grid">
+        <div class="agent-btn active" onclick="selectAgent(this,'dev')">
+          <span class="agent-icon">⚙️</span>개발
+        </div>
+        <div class="agent-btn" onclick="selectAgent(this,'content')">
+          <span class="agent-icon">✍️</span>콘텐츠
+        </div>
+        <div class="agent-btn" onclick="selectAgent(this,'research')">
+          <span class="agent-icon">🔍</span>리서치
+        </div>
+        <div class="agent-btn" onclick="selectAgent(this,'marketing')">
+          <span class="agent-icon">📣</span>마케팅
+        </div>
+        <div class="agent-btn" onclick="selectAgent(this,'ops')">
+          <span class="agent-icon">🔄</span>자동화
+        </div>
+        <div class="agent-btn" onclick="selectAgent(this,'custom')">
+          <span class="agent-icon">🎯</span>기타
+        </div>
+      </div>
+    </div>
+
+    <!-- 타겟 AI -->
+    <div>
+      <div class="section-label">지시서를 줄 AI</div>
+      <div class="target-grid">
+        <div class="target-btn" onclick="selectTarget(this,'gemini_cli')">
+          🟣 Gemini CLI <span class="target-badge">무료</span>
+        </div>
+        <div class="target-btn active" onclick="selectTarget(this,'claude')">
+          🟠 Claude / OpenCode <span class="target-badge">추천</span>
+        </div>
+        <div class="target-btn" onclick="selectTarget(this,'cursor')">
+          ⚫ Cursor / Copilot
+        </div>
+        <div class="target-btn" onclick="selectTarget(this,'gpt')">
+          🟢 GPT-4o
+        </div>
+        <div class="target-btn" onclick="selectTarget(this,'general')">
+          ⚪ 범용 / 상관없음
+        </div>
+      </div>
+    </div>
+
+    <!-- 히스토리 -->
+    <div id="historySection" style="display:none;">
+      <div class="section-label">최근 생성</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="main">
+    <div>
+      <div class="page-title">작업 지시서 생성기</div>
+      <div class="page-sub">모호한 지시 → 에이전트가 오해 없이 실행하는 정밀 브리프</div>
+    </div>
+
+    <!-- 예시 버튼 -->
+    <div>
+      <div class="section-label" style="margin-bottom:8px;">빠른 예시</div>
+      <div class="example-row">
+        <div class="example-pill" onclick="fillExample('supabase')">Supabase 데이터 리포트</div>
+        <div class="example-pill" onclick="fillExample('instagram')">인스타 자동 포스팅</div>
+        <div class="example-pill" onclick="fillExample('scraping')">웹 크롤링 파이프라인</div>
+        <div class="example-pill" onclick="fillExample('email')">이메일 자동화</div>
+      </div>
+    </div>
+
+    <!-- STEP 1: 작업 설명 -->
+    <div class="input-card">
+      <div class="input-card-header">
+        <div class="step-num">1</div>
+        <div class="input-card-title">무슨 작업을 시킬 건가요?</div>
+      </div>
+      <div class="input-card-body">
+        <textarea id="taskInput" placeholder="예: Supabase ideas 테이블에서 최근 100개 읽어서 카테고리별로 분류하고 HTML 리포트로 저장해줘. Python으로, 유료 API는 쓰지 마." rows="4"></textarea>
+      </div>
+    </div>
+
+    <!-- STEP 2: 기술 스택 -->
+    <div class="input-card">
+      <div class="input-card-header">
+        <div class="step-num">2</div>
+        <div class="input-card-title">기술 스택 / 제약 조건 (선택)</div>
+      </div>
+      <div class="input-card-body">
+        <textarea id="stackInput" placeholder="예: Python, Supabase Python SDK, 무료 환경만, Docker 없음" rows="2"></textarea>
+      </div>
+    </div>
+
+    <!-- STEP 3: 섹션 선택 -->
+    <div class="input-card">
+      <div class="input-card-header">
+        <div class="step-num">3</div>
+        <div class="input-card-title">지시서에 포함할 항목</div>
+      </div>
+      <div class="input-card-body">
+        <div class="sections-grid">
+          <div class="section-check checked" onclick="toggleSection(this,'goal')">
+            <div class="check-box">✓</div>🎯 목표 & 핵심 요구사항
+          </div>
+          <div class="section-check checked" onclick="toggleSection(this,'context')">
+            <div class="check-box">✓</div>📋 컨텍스트 & 배경
+          </div>
+          <div class="section-check checked" onclick="toggleSection(this,'steps')">
+            <div class="check-box">✓</div>📝 실행 단계 (Step-by-step)
+          </div>
+          <div class="section-check checked" onclick="toggleSection(this,'output')">
+            <div class="check-box">✓</div>📦 기대 결과물 & 포맷
+          </div>
+          <div class="section-check checked" onclick="toggleSection(this,'success')">
+            <div class="check-box">✓</div>✅ 성공 기준 (체크리스트)
+          </div>
+          <div class="section-check checked" onclick="toggleSection(this,'antipattern')">
+            <div class="check-box">✓</div>🚫 하지 말아야 할 것
+          </div>
+          <div class="section-check" onclick="toggleSection(this,'constraints')">
+            <div class="check-box"></div>⚠️ 제약 조건 & 환경
+          </div>
+          <div class="section-check" onclick="toggleSection(this,'fallback')">
+            <div class="check-box"></div>🔁 에러 처리 & 폴백
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 에러 -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- 생성 버튼 -->
+    <button class="generate-btn" id="generateBtn" onclick="generate()">
+      ⚡ 지시서 생성하기
+    </button>
+
+    <!-- 결과 -->
+    <div class="result-box" id="resultBox">
+      <div class="result-header">
+        <div class="result-title">
+          <span>●</span> TASK BRIEF
+        </div>
+        <div class="result-actions">
+          <button class="action-btn" onclick="copyResult()">복사</button>
+          <button class="action-btn" onclick="downloadResult()">다운로드</button>
+        </div>
+      </div>
+      <div id="loadingBar" class="loading-bar" style="display:none;"></div>
+      <div class="result-content" id="resultContent"></div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast">클립보드에 복사됐어요</div>
+
+<script>
+let selectedAgent = 'dev';
+let selectedTarget = 'claude';
+let selectedSections = new Set(['goal','context','steps','output','success','antipattern']);
+let lastResult = '';
+let history = JSON.parse(localStorage.getItem('bf_history') || '[]');
+
+const agentLabels = {
+  dev: '개발 에이전트',
+  content: '콘텐츠 에이전트',
+  research: '리서치 에이전트',
+  marketing: '마케팅 에이전트',
+  ops: '자동화 에이전트',
+  custom: '범용 에이전트'
+};
+
+const targetLabels = {
+  gemini_cli: 'Gemini CLI',
+  claude: 'Claude / Claude Code',
+  cursor: 'Cursor / GitHub Copilot',
+  gpt: 'GPT-4o',
+  general: '범용 AI 에이전트'
+};
+
+const examples = {
+  supabase: {
+    task: 'Supabase ideas 테이블에서 최근 100개 아이디어를 읽어서 카테고리별로 분류하고, HTML 리포트 파일로 저장해줘.',
+    stack: 'Python, Supabase Python SDK, 무료 환경만, 외부 유료 API 없음'
+  },
+  instagram: {
+    task: '인스타그램에 매일 오전 9시에 자동으로 포스팅하는 시스템 만들어줘. 텍스트는 AI로 생성하고, 이미지는 템플릿 기반으로.',
+    stack: 'Python, Instagram Graph API, 무료 또는 저비용만'
+  },
+  scraping: {
+    task: '특정 뉴스 사이트에서 매일 최신 기사 제목과 요약을 크롤링해서 Supabase에 저장하고 슬랙으로 요약 알림 보내줘.',
+    stack: 'Python, BeautifulSoup, Supabase, Slack Webhook'
+  },
+  email: {
+    task: '신규 가입 유저에게 7일 동안 자동으로 온보딩 이메일 시퀀스를 보내는 시스템 만들어줘.',
+    stack: 'Python, Supabase, Resend API (무료 티어 100/day)'
+  }
+};
+
+function fillExample(key) {
+  const ex = examples[key];
+  document.getElementById('taskInput').value = ex.task;
+  document.getElementById('stackInput').value = ex.stack;
+}
+
+function selectAgent(el, val) {
+  document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedAgent = val;
+}
+
+function selectTarget(el, val) {
+  document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedTarget = val;
+}
+
+function toggleSection(el, val) {
+  el.classList.toggle('checked');
+  const box = el.querySelector('.check-box');
+  if (el.classList.contains('checked')) {
+    selectedSections.add(val);
+    box.textContent = '✓';
+  } else {
+    selectedSections.delete(val);
+    box.textContent = '';
+  }
+}
+
+function checkKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  const dot = document.getElementById('apiDot');
+  const txt = document.getElementById('apiStatusText');
+  if (key.startsWith('AIza') && key.length > 20) {
+    dot.className = 'dot ok';
+    txt.style.color = 'var(--accent)';
+    txt.textContent = '키 확인됨 — gemini-2.5-flash 사용';
+  } else if (key.length > 0) {
+    dot.className = 'dot err';
+    txt.style.color = 'var(--red)';
+    txt.textContent = '올바른 형식이 아니에요 (AIza로 시작해야 해요)';
+  } else {
+    dot.className = 'dot';
+    txt.style.color = 'var(--muted)';
+    txt.textContent = '키를 입력하세요';
+  }
+}
+
+function buildPrompt(task, stack) {
+  const sectionMap = {
+    goal: '## 🎯 목표 & 핵심 요구사항\n이 작업의 핵심 목표와 반드시 충족해야 할 요구사항을 명확하게 서술해줘.',
+    context: '## 📋 컨텍스트 & 배경\n이 작업이 왜 필요한지, 어떤 환경에서 실행되는지 배경을 설명해줘.',
+    steps: '## 📝 실행 단계 (Step-by-step)\n에이전트가 순서대로 따를 수 있는 구체적인 실행 단계를 번호로 나열해줘. 각 단계는 명확한 액션으로.',
+    output: '## 📦 기대 결과물 & 포맷\n작업 완료 시 어떤 파일/결과물이 어떤 형태로 나와야 하는지 명시해줘.',
+    success: '## ✅ 성공 기준 (체크리스트)\n작업이 성공적으로 완료됐다고 볼 수 있는 기준을 체크리스트 형태로 작성해줘. 에이전트가 스스로 검증할 수 있어야 해.',
+    antipattern: '## 🚫 하지 말아야 할 것\n이 작업에서 흔히 하는 실수, 절대 하면 안 되는 것들을 명시해줘.',
+    constraints: '## ⚠️ 제약 조건 & 환경\n기술 스택, 비용, 권한, 환경 등 지켜야 할 제약 조건을 정리해줘.',
+    fallback: '## 🔁 에러 처리 & 폴백\n에러 발생 시 어떻게 처리해야 하는지, 재시도 로직이나 대안을 명시해줘.'
+  };
+
+  const selectedSectionPrompts = [...selectedSections].map(s => sectionMap[s]).join('\n\n');
+
+  return `너는 AI 에이전트 오케스트레이터를 위한 작업 지시서 전문가야.
+아래 작업 정보를 바탕으로 ${targetLabels[selectedTarget]}에게 줄 정밀한 작업 지시서(Task Brief)를 한국어로 작성해줘.
+
+에이전트 유형: ${agentLabels[selectedAgent]}
+타겟 AI: ${targetLabels[selectedTarget]}
+기술 스택/제약: ${stack || '명시된 것 없음'}
+
+[작업 내용]
+${task}
+
+---
+
+다음 섹션들을 포함해서 지시서를 작성해줘. 각 섹션은 에이전트가 오해 없이 실행할 수 있을 만큼 구체적이어야 해.
+가짜 SUCCESS를 내거나 중간에 포기하지 못하도록, 모호한 표현 없이 명확하게 써줘.
+
+${selectedSectionPrompts}
+
+---
+
+마지막에 ## 📌 에이전트에게 전달할 한 줄 요약 섹션을 추가해서,
+이 지시서의 핵심을 한 문장으로 요약해줘.`;
+}
+
+async function generate() {
+  const key = document.getElementById('apiKey').value.trim();
+  const task = document.getElementById('taskInput').value.trim();
+  const stack = document.getElementById('stackInput').value.trim();
+  const errBox = document.getElementById('errorBox');
+  const resultBox = document.getElementById('resultBox');
+  const btn = document.getElementById('generateBtn');
+
+  errBox.classList.remove('visible');
+
+  if (!key) {
+    errBox.textContent = '⚠️ Gemini API 키를 입력해주세요.';
+    errBox.classList.add('visible');
+    return;
+  }
+  if (!task) {
+    errBox.textContent = '⚠️ 작업 내용을 입력해주세요.';
+    errBox.classList.add('visible');
+    return;
+  }
+  if (selectedSections.size === 0) {
+    errBox.textContent = '⚠️ 포함할 섹션을 최소 1개 이상 선택해주세요.';
+    errBox.classList.add('visible');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+  resultBox.classList.add('visible');
+  document.getElementById('loadingBar').style.display = 'block';
+  document.getElementById('resultContent').textContent = '';
+
+  try {
+    const prompt = buildPrompt(task, stack);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
+        })
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data?.error?.message || '알 수 없는 오류';
+      throw new Error(msg);
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) throw new Error('응답이 비어있어요. 다시 시도해주세요.');
+
+    lastResult = text;
+    document.getElementById('resultContent').textContent = text;
+
+    // 히스토리 저장
+    const preview = task.slice(0, 40) + (task.length > 40 ? '...' : '');
+    history.unshift({ preview, content: text, ts: Date.now() });
+    if (history.length > 10) history = history.slice(0, 10);
+    localStorage.setItem('bf_history', JSON.stringify(history));
+    renderHistory();
+
+  } catch (e) {
+    let msg = e.message;
+    if (msg.includes('free_tier') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+      msg = '⚠️ 무료 한도 초과. gemini-2.5-flash-8b 모델은 한도가 더 높아요. 잠시 후 다시 시도하거나, 내일 다시 해보세요.';
+    } else if (msg.includes('API_KEY_INVALID') || msg.includes('invalid')) {
+      msg = '⚠️ API 키가 유효하지 않아요. aistudio.google.com에서 키를 다시 확인해주세요.';
+    }
+    errBox.textContent = msg;
+    errBox.classList.add('visible');
+    resultBox.classList.remove('visible');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ 지시서 생성하기';
+    document.getElementById('loadingBar').style.display = 'none';
+  }
+}
+
+function copyResult() {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(lastResult).then(() => {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  });
+}
+
+function downloadResult() {
+  if (!lastResult) return;
+  const blob = new Blob([lastResult], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `briefforge_${Date.now()}.md`;
+  a.click();
+}
+
+function renderHistory() {
+  const sec = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  if (history.length === 0) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = history.map((h, i) =>
+    `<div class="history-item" onclick="loadHistory(${i})">${h.preview}</div>`
+  ).join('');
+}
+
+function loadHistory(i) {
+  lastResult = history[i].content;
+  document.getElementById('resultContent').textContent = history[i].content;
+  document.getElementById('resultBox').classList.add('visible');
+}
+
+renderHistory();
+</script>
+</body>
+</html>
